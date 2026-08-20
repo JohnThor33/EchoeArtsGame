@@ -1,0 +1,2258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Velyne The Space Fighter</title>
+  <style>
+    :root {
+      --safe-area-inset-bottom: env(safe-area-inset-bottom, 24px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Arial Black', sans-serif;
+      background: #000;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    /* Peringatan Landscape Overlay */
+    #landscape-warning {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 4000;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #landscape-warning h1 {
+      color: #ff3333;
+      font-size: 2.5em;
+      margin-bottom: 20px;
+      text-shadow: 0 0 15px #ff0000;
+    }
+
+    #landscape-warning p {
+      color: white;
+      font-size: 1.2em;
+      line-height: 1.5;
+    }
+
+    @media screen and (orientation: landscape) {
+      #landscape-warning {
+        display: flex;
+      }
+    }
+
+    /* Game Header */
+    #game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background: #222;
+      border-bottom: 2px solid #444;
+      position: relative;
+      z-index: 100;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #game-header.active {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .hp-container, .score-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+    }
+
+    .hp-bar {
+      width: 140px;
+      height: 20px;
+      background: #333;
+      border: 2px solid #555;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .hp-fill {
+      height: 100%;
+      background: linear-gradient(to right, #f00, #0f0);
+      transition: width 0.3s ease;
+      width: 100%;
+    }
+
+    .boss-hp-fill {
+      height: 100%;
+      background: linear-gradient(to right, violet, purple);
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .score {
+      font-size: 22px;
+      font-weight: bold;
+      color: #ff0;
+      min-width: 110px;
+      text-align: center;
+    }
+
+    /* Game Container and Canvas */
+    #game-container {
+      flex: 1;
+      position: relative;
+      padding-bottom: max(100px, env(safe-area-inset-bottom));
+    }
+
+    canvas {
+      display: block;
+      background: #000;
+      width: 100%;
+      height: auto;
+      image-rendering: crisp-edges;
+    }
+
+    /* Game Footer and Controls */
+    #game-footer {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      background: #222;
+      padding: 10px 10px max(24px, env(safe-area-inset-bottom)) 10px;
+      border-top: 2px solid #444;
+      box-sizing: border-box;
+      z-index: 1000;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #game-footer.active {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .control-btn {
+      width: 50px;
+      height: 50px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      font-weight: bold;
+      user-select: none;
+      touch-action: manipulation;
+      border: 2px solid #888;
+      color: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .control-btn:active {
+      background: rgba(255, 255, 255, 0.4);
+      box-shadow: 0 0 15px rgba(255,255,255,0.7);
+    }
+
+    #fire-btn {
+      background: rgba(255, 50, 50, 0.5);
+      border-color: #f00;
+    }
+
+    #fire-btn:active {
+      background: rgba(255, 50, 50, 0.7);
+      box-shadow: 0 0 15px rgba(255,50,50,0.9);
+    }
+
+    #rocket-btn img, #beam-btn img {
+      width: 80%;
+      height: 80%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    #beam-btn {
+      display: none;
+      background: rgba(0, 119, 255, 0.5);
+      border-color: #0073e6;
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { box-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #0073e6, 0 0 20px #0073e6; }
+      to { box-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #0073e6, 0 0 40px #0073e6; }
+    }
+
+    .control-btn.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+      cursor: not-allowed;
+      border-color: #555;
+      box-shadow: none;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Custom Modal for Game Over / Victory */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: linear-gradient(45deg, #1a1a1a, #333333);
+      padding: 30px;
+      border-radius: 15px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.7);
+      max-width: 90%;
+      transform: scale(0.9);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal-content {
+      transform: scale(1);
+    }
+
+    .modal-title {
+      font-size: 2.5em;
+      color: #00ffff;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+    }
+
+    .modal-score {
+      font-size: 1.8em;
+      color: #ffcc00;
+      margin-bottom: 30px;
+    }
+
+    .modal-button {
+      background: linear-gradient(90deg, #007bff, #00c4ff);
+      color: white;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.1s ease, box-shadow 0.3s ease;
+      box-shadow: 0 5px 15px rgba(0, 196, 255, 0.4);
+    }
+
+    .modal-button:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 10px rgba(0, 196, 255, 0.6);
+    }
+
+    /* Dialogue Box Styling */
+    .dialogue-box {
+      position: absolute;
+      bottom: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      max-width: 600px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00ffff;
+      border-radius: 10px;
+      padding: 15px;
+      text-align: center;
+      color: white;
+      font-size: 1.2em;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+      z-index: 1500;
+    }
+
+    .dialogue-box.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .dialogue-text {
+      margin-bottom: 10px;
+    }
+
+    .dialogue-speaker {
+      font-weight: bold;
+      color: #00ffff;
+    }
+
+    /* Start Button Styling */
+    #start-button-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    #start-button {
+      background: linear-gradient(90deg, #007bff, #00c4ff);
+      color: white;
+      padding: 20px 40px;
+      border: none;
+      border-radius: 15px;
+      font-size: 1.8em;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.1s ease, box-shadow 0.3s ease;
+      box-shadow: 0 5px 20px rgba(0, 196, 255, 0.6);
+      font-family: 'Arial Black', sans-serif;
+    }
+
+    #start-button:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 10px rgba(0, 196, 255, 0.8);
+    }
+
+    #loading-message {
+      font-size: 1.2em;
+      color: #ccc;
+    }
+
+    /* NEXT Scene Overlay */
+    #next-scene-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(135deg, #4b0082, #800080);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2500;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1s ease, visibility 1s ease;
+      flex-direction: column;
+    }
+
+    #next-scene-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .star {
+      position: absolute;
+      background-color: white;
+      border-radius: 50%;
+      opacity: 0;
+      animation: twinkle 3s infinite ease-in-out alternate;
+    }
+
+    @keyframes twinkle {
+      0% { opacity: 0; transform: scale(0.5); }
+      50% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.5); }
+    }
+
+    #next-button-container {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ee82ee, #8a2be2);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 0 30px #ee82ee, 0 0 60px #8a2be2;
+      animation: pulse-next 2s infinite alternate;
+    }
+
+    @keyframes pulse-next {
+      from { transform: scale(1); box-shadow: 0 0 30px #ee82ee, 0 0 60px #8a2be2; }
+      to { transform: scale(1.05); box-shadow: 0 0 40px #ee82ee, 0 0 80px #8a2be2; }
+    }
+
+    #next-button-text {
+      font-size: 3em;
+      font-weight: bold;
+      color: white;
+      text-shadow: 0 0 10px #fff, 0 0 20px #ee82ee;
+    }
+
+    /* Image Sequence Scene */
+    #image-sequence-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2600;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1s ease, visibility 1s ease;
+    }
+
+    #image-sequence-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #sequence-image {
+      max-width: 90%;
+      max-height: 90%;
+      object-fit: contain;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+      transition: opacity 1s ease-in-out;
+    }
+
+    /* Quiz Scene */
+    #quiz-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(135deg, #ffc0cb, #ff69b4);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2700;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1s ease, visibility 1s ease;
+      padding: 20px;
+    }
+
+    #quiz-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #quiz-container {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      max-width: 600px;
+      width: 100%;
+      color: #333;
+      position: relative;
+    }
+
+    #quiz-timer {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #e74c3c;
+    }
+
+    #quiz-question {
+      font-size: 1.8em;
+      margin-bottom: 25px;
+      color: #8a2be2;
+      font-weight: bold;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .quiz-option-btn {
+      background: linear-gradient(90deg, #f06292, #e91e63);
+      color: white;
+      padding: 15px 25px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.1s ease, box-shadow 0.3s ease;
+      box-shadow: 0 5px 15px rgba(233, 30, 99, 0.4);
+    }
+
+    .quiz-option-btn:hover {
+      background: linear-gradient(90deg, #e91e63, #f06292);
+    }
+
+    .quiz-option-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 10px rgba(233, 30, 99, 0.6);
+    }
+
+    .quiz-option-btn.correct { background: linear-gradient(90deg, #8bc34a, #4caf50); }
+    .quiz-option-btn.wrong { background: linear-gradient(90deg, #ef5350, #d32f2f); }
+
+    #quiz-feedback {
+      margin-top: 20px;
+      font-size: 1.3em;
+      font-weight: bold;
+      min-height: 30px;
+    }
+
+    #quiz-feedback.correct { color: #4CAF50; }
+    #quiz-feedback.wrong { color: #D32F2F; }
+
+    #quiz-hadehh {
+      font-size: 3em;
+      color: #e74c3c;
+      margin-top: 30px;
+      font-weight: bold;
+      animation: bounce 0.5s infinite alternate;
+    }
+
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to { transform: translateY(-10px); }
+    }
+
+    #quiz-win-message {
+      font-size: 3em;
+      color: #28a745;
+      font-weight: bold;
+      margin-bottom: 30px;
+      text-shadow: 0 0 10px #28a745, 0 0 20px rgba(40, 167, 69, 0.5);
+    }
+
+    #quiz-continue-btn {
+      background: linear-gradient(90deg, #28a745, #218838);
+      color: white;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.1s ease, box-shadow 0.3s ease;
+      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+    }
+
+    #quiz-continue-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 10px rgba(40, 167, 69, 0.6);
+    }
+
+    /* Final Victory Scene */
+    #final-victory-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(135deg, #87ceeb, #add8e6);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2800;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1s ease, visibility 1s ease;
+      overflow: hidden;
+    }
+
+    #final-victory-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #dancing-chicken-gif {
+      position: absolute;
+      max-width: 80%;
+      max-height: 80%;
+      object-fit: contain;
+      z-index: 1;
+    }
+
+    .confetti {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background-color: #f0f;
+      animation: fall linear infinite;
+      z-index: 0;
+    }
+
+    @keyframes fall {
+      to { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+
+    #final-message {
+      font-family: 'Arial Black', sans-serif;
+      font-size: 1.5em;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+      margin-top: 20px;
+      display: none;
+      z-index: 2;
+      max-width: 80%;
+    }
+
+    #final-message p { margin: 10px 0; line-height: 1.4; }
+    #final-message .highlight { color: #8a2be2; font-weight: bold; }
+    #final-message .password {
+      font-family: 'Courier New', monospace;
+      background: #eee;
+      padding: 5px 10px;
+      border-radius: 5px;
+      display: inline-block;
+      margin-top: 10px;
+      color: #c0392b;
+    }
+    #final-message .signature { margin-top: 20px; font-style: italic; font-size: 0.9em; }
+
+  </style>
+</head>
+<body>
+
+  <!-- Peringatan Landscape Overlay -->
+  <div id="landscape-warning">
+    <h1>Hp nya jangan rebahan ya 📱</h1>
+    <p>Putar HP kamu ke posisi berdiri (Portrait) untuk melanjutkan permainan.</p>
+  </div>
+
+  <header id="game-header">
+    <div class="hp-container">
+      <div>Velin:</div>
+      <div class="hp-bar"><div id="hp-fill" class="hp-fill"></div></div>
+    </div>
+    <div class="score-container">
+      SCORE: <span id="score" class="score">0</span>
+    </div>
+    <div class="hp-container">
+      <div>Bos 1:</div>
+      <div class="hp-bar"><div id="boss-hp-fill" class="boss-hp-fill"></div></div>
+    </div>
+  </header>
+
+  <main id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="dialogue-box" class="dialogue-box">
+      <div id="dialogue-text" class="dialogue-text"></div>
+      <div id="dialogue-speaker" class="dialogue-speaker"></div>
+    </div>
+  </main>
+
+  <footer id="game-footer">
+    <div class="controls">
+      <div id="up-btn" class="control-btn">↑</div>
+      <div id="down-btn" class="control-btn">↓</div>
+      <div id="fire-btn" class="control-btn">FIRE</div>
+      <div id="rocket-btn" class="control-btn" style="display:none;">
+        <img src="https://johnthor33.github.io/VelinTest/Roket.png" alt="Rocket" />
+      </div>
+      <div id="beam-btn" class="control-btn">
+        <img src="https://johnthor33.github.io/VelinTest/HeroBeam.png" alt="Beam" />
+      </div>
+    </div>
+  </footer>
+
+  <!-- Custom Game Over/Victory Modal -->
+  <div id="game-modal-overlay" class="modal-overlay">
+    <div class="modal-content">
+      <h2 id="modal-title" class="modal-title"></h2>
+      <p id="modal-score" class="modal-score"></p>
+      <button id="modal-restart-btn" class="modal-button">Baleni Vel</button>
+    </div>
+  </div>
+
+  <!-- Start Button Overlay -->
+  <div id="start-button-overlay">
+    <div id="loading-message">Memuat aset...</div>
+    <button id="start-button" style="display:none;">Mulai Game</button>
+  </div>
+
+  <!-- NEXT Scene Overlay -->
+  <div id="next-scene-overlay">
+    <div id="next-button-container">
+      <span id="next-button-text">NEXT</span>
+    </div>
+  </div>
+
+  <!-- Image Sequence Overlay -->
+  <div id="image-sequence-overlay">
+    <img id="sequence-image" src="" alt="Sequence Image" />
+  </div>
+
+  <!-- Quiz Overlay -->
+  <div id="quiz-overlay">
+    <div id="quiz-container">
+      <div id="quiz-timer">Waktu: 10:00</div>
+      <div id="quiz-question"></div>
+      <div class="quiz-options" id="quiz-options"></div>
+      <div id="quiz-feedback"></div>
+      <div id="quiz-hadehh" style="display:none;">Hadehh</div>
+      <button id="quiz-restart-btn" class="modal-button" style="display:none; margin-top: 20px;">Restart Quiz</button>
+      <div id="quiz-win-message" style="display:none;">YEYY!!!</div>
+      <button id="quiz-continue-btn" style="display:none; margin-top: 20px;">LANJUT</button>
+    </div>
+  </div>
+
+  <!-- Final Victory Overlay -->
+  <div id="final-victory-overlay">
+    <img id="dancing-chicken-gif" src="https://johnthor33.github.io/VelinTest/dancingchicken.gif" alt="Dancing Chicken" style="display:none;"/>
+    <div id="final-message" style="display:none;">
+      <p>Selamat <span class="highlight">Pro Velin</span>, kamu berhasil mendapatkan <span class="highlight">400 robux</span> dan <span class="highlight">11 diamonds</span>!</p>
+      <p>Hadiah dikirim rentang waktu 7 hari.</p>
+      <p>Kirim password ini:</p>
+      <p class="password">"Aku missqueen, donasi robux sama diamonds nya ya"</p>
+      <p>ke wa Master Fian untuk klaim hadiah.</p>
+      <p class="signature">Sekian, saya Markonah👱, asisten Master Fian </p>
+      <p class="signature">Salam kenal. See you!</p>
+    </div>
+  </div>
+
+  <script>
+    // System Constants
+    const targetFPS = 91;
+    const frameInterval = 1000 / targetFPS;
+    let lastFrameTime = 0;
+    let lastTimestamp = 0;
+
+    // DOM Elements
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const hpFill = document.getElementById('hp-fill');
+    const bossHpFill = document.getElementById('boss-hp-fill');
+    const scoreDisplay = document.getElementById('score');
+    
+    // Buttons
+    const rocketBtn = document.getElementById('rocket-btn');
+    const beamBtn = document.getElementById('beam-btn');
+    const fireBtn = document.getElementById('fire-btn');
+    const upBtn = document.getElementById('up-btn');
+    const downBtn = document.getElementById('down-btn');
+    const startButton = document.getElementById('start-button');
+    const modalRestartBtn = document.getElementById('modal-restart-btn');
+    const quizRestartBtn = document.getElementById('quiz-restart-btn');
+    const quizContinueBtn = document.getElementById('quiz-continue-btn');
+    const nextButtonContainer = document.getElementById('next-button-container');
+
+    // Overlays & Sections
+    const gameHeader = document.getElementById('game-header');
+    const gameFooter = document.getElementById('game-footer');
+    const gameModalOverlay = document.getElementById('game-modal-overlay');
+    const startButtonOverlay = document.getElementById('start-button-overlay');
+    const nextSceneOverlay = document.getElementById('next-scene-overlay');
+    const imageSequenceOverlay = document.getElementById('image-sequence-overlay');
+    const quizOverlay = document.getElementById('quiz-overlay');
+    const finalVictoryOverlay = document.getElementById('final-victory-overlay');
+    
+    // UI Elements
+    const modalTitle = document.getElementById('modal-title');
+    const modalScore = document.getElementById('modal-score');
+    const dialogueBox = document.getElementById('dialogue-box');
+    const dialogueText = document.getElementById('dialogue-text');
+    const dialogueSpeaker = document.getElementById('dialogue-speaker');
+    const loadingMessage = document.getElementById('loading-message');
+    const sequenceImage = document.getElementById('sequence-image');
+    
+    // Quiz Elements
+    const quizQuestion = document.getElementById('quiz-question');
+    const quizOptions = document.getElementById('quiz-options');
+    const quizFeedback = document.getElementById('quiz-feedback');
+    const quizTimerDisplay = document.getElementById('quiz-timer');
+    const quizHadehh = document.getElementById('quiz-hadehh');
+    const quizWinMessage = document.getElementById('quiz-win-message');
+    
+    // Victory Elements
+    const dancingChickenGif = document.getElementById('dancing-chicken-gif');
+    const finalMessage = document.getElementById('final-message');
+
+    // Assets Configuration
+    const assets = {
+      hero: new Image(),
+      boss1: new Image(),
+      boss2: new Image(),
+      enemy: new Image(),
+      rocket: new Image(),
+      beam: new Image(),
+      bg: new Image(),
+      explosions: [new Image(), new Image(), new Image(), new Image()],
+      thunder: new Image(),
+      sceneImages: [new Image(), new Image(), new Image(), new Image(), new Image(), new Image()]
+    };
+
+    assets.hero.src = 'https://johnthor33.github.io/VelinTest/Alifah.png';
+    assets.boss1.src = 'https://johnthor33.github.io/VelinTest/Bos11.png';
+    assets.boss2.src = 'https://johnthor33.github.io/VelinTest/Bos22.png';
+    assets.enemy.src = 'https://johnthor33.github.io/VelinTest/Alien.png';
+    assets.rocket.src = 'https://johnthor33.github.io/VelinTest/Roket.png';
+    assets.beam.src = 'https://johnthor33.github.io/VelinTest/HeroBeam.png';
+    assets.bg.src = 'https://johnthor33.github.io/VelinTest/Spaceouter.png';
+    assets.explosions.forEach((img, i) => img.src = `https://johnthor33.github.io/VelinTest/ledakan${i+1}.png`);
+    assets.thunder.src = 'https://johnthor33.github.io/VelinTest/thunder1.png';
+    assets.sceneImages.forEach((img, i) => img.src = `https://johnthor33.github.io/VelinTest/scene${i+1}.png`);
+
+    // Audio Setup
+    const audio = {
+      heroShot: new Audio('https://johnthor33.github.io/VelinTest/heroshot.mp3'),
+      miniExplosion: new Audio('https://johnthor33.github.io/VelinTest/miniexplosion.mp3'),
+      rocketShot: new Audio('https://johnthor33.github.io/VelinTest/rocket2.mp3'),
+      finalExplosion: new Audio('https://johnthor33.github.io/VelinTest/finalexplosion.mp3'),
+      danger: new Audio('https://johnthor33.github.io/VelinTest/Danger.mp3'),
+      cry: new Audio('https://johnthor33.github.io/VelinTest/cry.mp3'),
+      victory: new Audio('https://johnthor33.github.io/VelinTest/won.mp3'),
+      laughter: new Audio('https://johnthor33.github.io/VelinTest/laughter.mp3'),
+      gameplayMusic: new Audio('https://johnthor33.github.io/VelinTest/space.mp3'),
+      bossBattleMusic: new Audio('https://johnthor33.github.io/VelinTest/BossBattle.mp3'),
+      thunderSound: new Audio('https://johnthor33.github.io/VelinTest/pikachu.mp3'),
+      castingAudio: new Audio('https://johnthor33.github.io/VelinTest/Casting.mp3'),
+      beamAudio: new Audio('https://johnthor33.github.io/VelinTest/beam.mp3'),
+      enjoyMusic: new Audio('https://johnthor33.github.io/VelinTest/enjoy1.mp3'),
+      yeySound: new Audio('https://johnthor33.github.io/VelinTest/yey.mp3'),
+      boooSound: new Audio('https://johnthor33.github.io/VelinTest/booo.mp3'),
+      chickenSong: new Audio('https://johnthor33.github.io/VelinTest/chickensong.mp3'),
+      cheerSound: new Audio('https://johnthor33.github.io/VelinTest/cheer.mp3')
+    };
+
+    for (const key in audio) {
+      if (audio.hasOwnProperty(key)) {
+        audio[key].load();
+        audio[key].volume = 0.5;
+      }
+    }
+
+    // Audio Listeners
+    audio.finalExplosion.addEventListener('ended', () => {
+      gameState.boss = null;
+      gameState.score += 100;
+      scoreDisplay.textContent = gameState.score;
+      
+      for (const key in audio) {
+        if (audio.hasOwnProperty(key) && key !== 'victory') {
+          audio[key].pause();
+          audio[key].currentTime = 0;
+        }
+      }
+      
+      if (audio.victory) {
+        audio.victory.currentTime = 0;
+        audio.victory.play().then(() => {
+          gameState.currentScene = 'player_exit_scene';
+          gameState.playerExitStartTime = performance.now();
+        }).catch(e => console.error("Error playing victory audio:", e));
+      } else {
+        gameState.currentScene = 'player_exit_scene';
+        gameState.playerExitStartTime = performance.now();
+      }
+    });
+
+    // Global Game State
+    const gameState = {
+      player: { x: 50, y: 0, width: 65, height: 50, speed: 5, hp: 2000, img: assets.hero, exploding: false },
+      bullets: [],
+      rockets: [],
+      beams: [],
+      enemies: [],
+      enemyBullets: [],
+      boss: null,
+      score: 0,
+      lastEnemySpawn: 0,
+      enemySpawnInterval: 2000,
+      keys: { up: false, down: false, fire: false },
+      lastFire: 0,
+      fireRate: 300,
+      lastRocketFire: 0,
+      rocketFireRate: 3000,
+      lastBeamFire: 0,
+      beamFireRate: 5000,
+      isScreenFlashing: false,
+      screenFlashStartTime: 0,
+      screenFlashDuration: 5000,
+      screenFlashBlinkInterval: 150,
+      currentScreenFlashBlinkState: false,
+      explosions: [],
+      debris: [],
+      thunderAnimations: [],
+      isVictory: false,
+      heroExitSpeed: 3,
+      victoryText: { alpha: 0, blinkDirection: 0.02, text: "Pro Velin, WIN!", x: 0, y: 0 },
+      bgX: 0,
+      bgSpeed: 2,
+      gameRunning: true,
+      bossDefeated: false,
+      currentScene: 'intro',
+      introScene: null,
+      playerInSafeZoneTime: 0,
+      isPlayerInSafeZone: false,
+      safeZonePenaltyDuration: 3000,
+      safeZoneThreshold: 0.1,
+      isBeamSequenceActive: false,
+      beamSequenceState: 'idle',
+      beamSequenceStartTime: 0,
+      playerOriginalPos: { x: 0, y: 0 },
+      bossOriginalPos: { x: 0, y: 0 },
+      repositionSpeed: 0.05,
+      playerExitStartTime: 0,
+      victoryTextStartTime: 0,
+      victorySceneFadeOutStartTime: 0,
+      imageSequenceIndex: 0,
+      imageSequenceStartTime: 0,
+      imageDisplayDuration: 130000 / 6,
+      quizData: [
+        { question: "كِتَابٌ artinya...", options: ["A. Buku", "B. Pensil"], answer: "A. Buku" },
+        { question: "Arti \"na'am\" adalah", options: ["A. Ya", "B. Tidak"], answer: "A. Ya" },
+        { question: "قَلَمٌ artinya...", options: ["A. Tas", "B. Pensil"], answer: "B. Pensil" },
+        { question: "مَدْرَسَةٌ artinya...", options: ["A. Sekolah", "B. Rumah"], answer: "A. Sekolah" },
+        { question: "Assalamu’alaikum = السَّلَامُ عَلَيْكُمْ\nApa jawaban yang benar?", options: ["A. وَعَلَيْكُمُ السَّلَامُ", "B. أَهْلًا وَسَهْلًا"], answer: "A. وَعَلَيْكُمُ السَّلَامُ" }
+      ],
+      currentQuestionIndex: 0,
+      quizStartTime: 0,
+      correctAnswersCount: 0,
+      quizTimerInterval: null,
+      confettiParticles: [],
+      chickenGifDisplayed: false,
+      finalVictoryStartTime: 0,
+      finalMessageDisplayTime: 0,
+      isPausedByOrientation: false
+    };
+
+    // Game Classes
+    class Bullet {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.width = 15; this.height = 5; this.speed = 10; this.color = '#f1c40f';
+      }
+      update() { this.x += this.speed; }
+      draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#ff9900';
+        ctx.fillRect(this.x + this.width - 3, this.y, 3, this.height);
+      }
+    }
+
+    class Rocket {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.width = 65; this.height = 50; this.speed = 7;
+      }
+      update() { this.x += this.speed; }
+      draw() {
+        if (assets.rocket.complete) {
+          ctx.drawImage(assets.rocket, this.x, this.y, this.width, this.height);
+        } else {
+          ctx.fillStyle = 'orange'; ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
+      }
+    }
+
+    class Beam {
+      constructor(x, y, duration) {
+        this.x = x; this.y = y; this.width = canvas.width - x; this.height = 30;
+        this.active = true; this.startTime = performance.now(); this.duration = duration;
+      }
+      update() {
+        if (performance.now() - this.startTime > this.duration) this.active = false;
+      }
+      draw() {
+        if (assets.beam.complete) {
+          ctx.globalAlpha = 0.7;
+          ctx.drawImage(assets.beam, this.x, this.y - this.height/2, this.width, this.height);
+          ctx.globalAlpha = 1.0;
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = '#0077ff';
+          ctx.drawImage(assets.beam, this.x, this.y - this.height/2, this.width, this.height);
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.fillStyle = 'rgba(0, 119, 255, 0.7)';
+          ctx.fillRect(this.x, this.y - this.height/2, this.width, this.height);
+        }
+      }
+    }
+
+    class Enemy {
+      constructor() {
+        this.width = 50; this.height = 53;
+        this.x = canvas.width;
+        this.y = Math.random() * (canvas.height - this.height);
+        this.speed = 3; this.lastFire = 0; this.fireRate = 1000;
+      }
+      update(timestamp) {
+        this.x -= this.speed;
+        if (timestamp - this.lastFire > this.fireRate) {
+          this.fire(); this.lastFire = timestamp;
+        }
+      }
+      fire() {
+        gameState.enemyBullets.push(new EnemyBullet(this.x, this.y + this.height / 2 - 3));
+      }
+      draw() {
+        if (assets.enemy.complete) ctx.drawImage(assets.enemy, this.x, this.y, this.width, this.height);
+        else { ctx.fillStyle = '#e74c3c'; ctx.fillRect(this.x, this.y, this.width, this.height); }
+      }
+    }
+
+    class EnemyBullet {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.width = 10; this.height = 6; this.speed = 7; this.color = '#ff5555';
+      }
+      update() { this.x -= this.speed; }
+      draw() {
+        ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.fillStyle = '#ff2222'; ctx.fillRect(this.x, this.y, 4, this.height);
+      }
+    }
+
+    class Boss {
+      constructor() {
+        this.width = 80; this.height = 116;
+        this.x = canvas.width - this.width - 10;
+        this.y = Math.random() * (canvas.height - this.height);
+        this.speedY = 3 + Math.random() * 2;
+        this.moveDirection = Math.random() < 0.5 ? 1 : -1;
+        this.lastFire = 0; this.fireRate = 800; this.bulletsFired = 0;
+        this.isLaserActive = false; this.laserStartTime = 0; this.laserDuration = 700;
+        this.laserDamageApplied = false; this.laserCooldown = 1000; this.isLaserCooldown = false;
+        this.hp = 700; this.maxHp = 700; this.isTransformed = false;
+        this.img = assets.boss1; this.transformInitiated = false;
+        this.transformationDelay = 1500; this.transformationTime = 0;
+        this.exploding = false; this.transformedSpeedMultiplier = 2.0;
+        this.baseSpeedMin = 3; this.baseSpeedMax = 5;
+      }
+      update(timestamp) {
+        if (gameState.isScreenFlashing || gameState.bossDefeated || this.exploding || gameState.isBeamSequenceActive) return;
+
+        if (!this.transformInitiated && this.hp <= this.maxHp / 2) {
+          this.transformInitiated = true;
+          this.transformationTime = timestamp + this.transformationDelay;
+        }
+
+        if (this.transformInitiated && !this.isTransformed && timestamp >= this.transformationTime) {
+          this.transform();
+        }
+
+        if (this.isLaserActive) {
+          if (timestamp - this.laserStartTime > this.laserDuration) {
+            this.isLaserActive = false;
+            this.isLaserCooldown = true;
+            this.laserCooldownStart = timestamp;
+          }
+          return;
+        }
+
+        if (this.isLaserCooldown) {
+          if (timestamp - this.laserCooldownStart > this.laserCooldown) this.isLaserCooldown = false;
+          else return;
+        }
+
+        this.y += this.speedY * this.moveDirection;
+        if (this.y <= 0) {
+          this.y = 0; this.moveDirection = 1;
+          this.speedY = (this.baseSpeedMin + Math.random() * (this.baseSpeedMax - this.baseSpeedMin)) * (this.isTransformed ? this.transformedSpeedMultiplier : 1);
+        } else if (this.y + this.height >= canvas.height) {
+          this.y = canvas.height - this.height; this.moveDirection = -1;
+          this.speedY = (this.baseSpeedMin + Math.random() * (this.baseSpeedMax - this.baseSpeedMin)) * (this.isTransformed ? this.transformedSpeedMultiplier : 1);
+        }
+
+        if (timestamp - this.lastFire > this.fireRate) {
+          this.fire(timestamp);
+          this.lastFire = timestamp;
+        }
+      }
+      transform() {
+        if (!this.isTransformed) {
+          this.isTransformed = true;
+          this.img = assets.boss2;
+          this.speedY = Math.min(this.speedY * this.transformedSpeedMultiplier, 10);
+          this.fireRate = 500;
+        }
+      }
+      fire(timestamp) {
+        this.bulletsFired++;
+        if (this.bulletsFired % 8 === 0) {
+          this.isLaserActive = true;
+          this.laserStartTime = timestamp;
+          this.laserDamageApplied = false;
+        } else {
+          if (this.isTransformed) {
+            gameState.enemyBullets.push(new EnemyBullet(this.x, this.y + this.height / 2 - 10));
+            gameState.enemyBullets.push(new EnemyBullet(this.x, this.y + this.height / 2 - 3));
+            gameState.enemyBullets.push(new EnemyBullet(this.x, this.y + this.height / 2 + 4));
+          } else {
+            gameState.enemyBullets.push(new EnemyBullet(this.x, this.y + this.height / 2 - 3));
+          }
+        }
+      }
+      draw() {
+        if (this.exploding) return;
+        if (this.img.complete) ctx.drawImage(this.img, this.x, this.y, this.width, this.height);
+        else { ctx.fillStyle = '#800080'; ctx.fillRect(this.x, this.y, this.width, this.height); }
+
+        if (this.isLaserActive) {
+          ctx.fillStyle = 'rgba(255, 105, 255, 0.7)';
+          ctx.fillRect(0, this.y + this.height / 3, this.x, this.height / 3);
+        }
+      }
+    }
+
+    class Explosion {
+      constructor(x, y, size = 60, duration = 400) {
+        this.x = x; this.y = y; this.size = size;
+        this.startTime = performance.now();
+        this.duration = duration;
+        this.frameIndex = 0;
+        this.totalFrames = assets.explosions.length;
+        this.framesPerImage = this.duration / this.totalFrames;
+        this.finished = false;
+      }
+      update() {
+        this.frameIndex = Math.min(Math.floor((performance.now() - this.startTime) / this.framesPerImage), this.totalFrames - 1);
+        if (performance.now() - this.startTime > this.duration) this.finished = true;
+      }
+      draw() {
+        if (!this.finished && assets.explosions[this.frameIndex]?.complete) {
+          ctx.globalAlpha = 0.8;
+          ctx.drawImage(assets.explosions[this.frameIndex], this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
+          ctx.globalAlpha = 1.0;
+        }
+      }
+      isFinished() { return this.finished; }
+    }
+
+    class BossExplosion extends Explosion {
+      constructor(x, y) {
+        super(x, y, 900, 14000);
+        this.speedX = 0; this.speedY = 0; this.debrisSpawned = false;
+      }
+      update() {
+        super.update();
+        this.x += this.speedX; this.y += this.speedY;
+        if (!this.debrisSpawned && performance.now() - this.startTime > 1000) {
+          this.spawnDebris();
+          this.debrisSpawned = true;
+        }
+      }
+      spawnDebris() {
+        const colors = ['#8A2BE2', '#9932CC', '#9400D3', '#4B0082'];
+        for (let i = 0; i < 20; i++) {
+          gameState.debris.push(new BossDebris(
+            this.x + (Math.random() - 0.5) * 100,
+            this.y + (Math.random() - 0.5) * 100,
+            colors[Math.floor(Math.random() * colors.length)]
+          ));
+        }
+      }
+    }
+
+    class PlayerExplosion extends Explosion {
+      constructor(x, y) { super(x, y, 80, 500); }
+    }
+
+    class BossDebris {
+      constructor(x, y, color) {
+        this.x = x; this.y = y; this.size = Math.random() * 30 + 15;
+        this.color = color;
+        this.speedX = (Math.random() - 0.5) * 8;
+        this.speedY = (Math.random() - 0.5) * 8;
+        this.rotation = 0;
+        this.rotationSpeed = (Math.random() - 0.5) * 0.3;
+        this.gravity = 0.1; this.lifetime = 0; this.maxLifetime = 3000;
+      }
+      update() {
+        this.x += this.speedX; this.y += this.speedY;
+        this.speedY += this.gravity; this.rotation += this.rotationSpeed;
+        this.lifetime += 16;
+      }
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+        ctx.fillStyle = this.color;
+        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
+        ctx.restore();
+      }
+      isFinished() { return this.lifetime >= this.maxLifetime; }
+    }
+
+    class ThunderAnimation {
+      constructor(x, y, width, height, duration) {
+        this.x = x; this.y = y; this.width = width; this.height = height;
+        this.startTime = performance.now(); this.duration = duration;
+        this.finished = false; this.initialX = x;
+      }
+      update(timestamp) {
+        const elapsed = timestamp - this.startTime;
+        if (elapsed > this.duration) { this.finished = true; return; }
+        this.x = this.initialX - (this.initialX + this.width) * (elapsed / this.duration);
+      }
+      draw() {
+        if (!this.finished && assets.thunder.complete) {
+          ctx.globalAlpha = 1 - (performance.now() - this.startTime) / this.duration;
+          ctx.drawImage(assets.thunder, this.x, this.y, this.width, this.height);
+          ctx.globalAlpha = 1.0;
+        }
+      }
+      isFinished() { return this.finished; }
+    }
+
+    class IntroScene {
+      constructor() {
+        this.state = 'start';
+        this.startTime = 0;
+        this.playerIntroX = -gameState.player.width;
+        this.playerTargetX = canvas.width * 0.2;
+        this.bossIntroX = canvas.width + assets.boss1.width;
+        this.bossTargetX = canvas.width * 0.7;
+        this.dialogueText = "Velin, kamu noob atau pro? Mari kita lihat, kutunggu di ujung sana.";
+        this.dialogueSpeaker = "Aku prajuritnya Master Pro Fian";
+        this.dialogueDisplayTime = 4000;
+        this.dialogueFadeTime = 1000;
+        this.bossExitSpeed = 5;
+        this.dialogueAlpha = 0;
+        this.dialogueFadeDirection = 0.02;
+      }
+      update(timestamp) {
+        if (this.startTime === 0) this.startTime = timestamp;
+        const elapsed = timestamp - this.startTime;
+
+        switch (this.state) {
+          case 'start':
+            gameState.player.x = this.playerIntroX + (this.playerTargetX - this.playerIntroX) * (elapsed / 1000);
+            if (gameState.player.x >= this.playerTargetX) {
+              gameState.player.x = this.playerTargetX;
+              this.state = 'boss_appear';
+              this.startTime = timestamp;
+            }
+            break;
+          case 'boss_appear':
+            if (!gameState.boss) {
+              gameState.boss = new Boss();
+              gameState.boss.y = canvas.height / 2 - gameState.boss.height / 2;
+            }
+            gameState.boss.x = this.bossIntroX - (this.bossIntroX - this.bossTargetX) * (elapsed / 1000);
+            if (gameState.boss.x <= this.bossTargetX) {
+              gameState.boss.x = this.bossTargetX;
+              this.state = 'dialogue';
+              this.startTime = timestamp;
+            }
+            break;
+          case 'dialogue':
+            dialogueBox.classList.add('active');
+            dialogueText.textContent = this.dialogueText;
+            dialogueSpeaker.textContent = this.dialogueSpeaker;
+            this.dialogueAlpha = Math.min(1, this.dialogueAlpha + this.dialogueFadeDirection);
+            dialogueBox.style.opacity = this.dialogueAlpha;
+            if (elapsed > this.dialogueDisplayTime) {
+              this.state = 'dialogue_fade';
+              this.startTime = timestamp;
+            }
+            break;
+          case 'dialogue_fade':
+            this.dialogueAlpha = Math.max(0, 1 - (elapsed / this.dialogueFadeTime));
+            dialogueBox.style.opacity = this.dialogueAlpha;
+            if (elapsed > this.dialogueFadeTime) {
+              dialogueBox.classList.remove('active');
+              this.state = 'boss_exit';
+              this.startTime = timestamp;
+            }
+            break;
+          case 'boss_exit':
+            if (gameState.boss) {
+              gameState.boss.x += this.bossExitSpeed;
+              if (gameState.boss.x > canvas.width + gameState.boss.width) {
+                gameState.boss = null;
+                this.state = 'laughter';
+                this.startTime = timestamp;
+              }
+            } else {
+              this.state = 'laughter';
+              this.startTime = timestamp;
+            }
+            break;
+          case 'laughter':
+            if (audio.laughter && !audio.laughter.playing) {
+              audio.laughter.currentTime = 0;
+              audio.laughter.play().catch(e => console.error("Error playing laughter:", e));
+              audio.laughter.playing = true;
+            }
+            if (elapsed > 9000) {
+              this.state = 'finished';
+              this.startTime = timestamp;
+            }
+            break;
+          case 'finished':
+            if (elapsed > 1000) return true;
+            break;
+        }
+        return false;
+      }
+      draw() {
+        drawBackground();
+        if (assets.hero.complete) ctx.drawImage(assets.hero, gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
+        if (gameState.boss && gameState.boss.img.complete) ctx.drawImage(gameState.boss.img, gameState.boss.x, gameState.boss.y, gameState.boss.width, gameState.boss.height);
+      }
+      isFinished() {
+        return this.state === 'finished' && (performance.now() - this.startTime > 1000);
+      }
+    }
+
+    // Main Functions
+    function resizeCanvas() {
+      const headerHeight = gameHeader?.offsetHeight || 0;
+      const footerHeight = gameFooter?.offsetHeight || 0;
+      const visualViewportHeight = window.visualViewport?.height || window.innerHeight;
+      const safeInset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom')) || 24;
+
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = visualViewportHeight - headerHeight - footerHeight - safeInset;
+      gameState.player.y = Math.min(canvas.height - gameState.player.height, Math.max(0, gameState.player.y));
+      gameState.victoryText.x = canvas.width / 2;
+      gameState.victoryText.y = canvas.height / 2;
+
+      if (gameState.introScene) {
+        gameState.introScene.playerTargetX = canvas.width * 0.2;
+        gameState.introScene.bossTargetX = canvas.width * 0.7;
+      }
+    }
+
+    function checkOrientation() {
+      const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+      if (isLandscape && !gameState.isPausedByOrientation) {
+        gameState.isPausedByOrientation = true;
+        for (const key in audio) {
+          if (audio.hasOwnProperty(key) && !audio[key].paused) {
+            audio[key].wasPlaying = true;
+            audio[key].pause();
+          } else if (audio.hasOwnProperty(key)) {
+            audio[key].wasPlaying = false;
+          }
+        }
+      } else if (!isLandscape && gameState.isPausedByOrientation) {
+        gameState.isPausedByOrientation = false;
+        for (const key in audio) {
+          if (audio.hasOwnProperty(key) && audio[key].wasPlaying) {
+            audio[key].play().catch(e => console.error("Gagal resume audio:", e));
+          }
+        }
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      checkOrientation();
+    });
+
+    resizeCanvas();
+    checkOrientation();
+
+    function drawBackground() {
+      gameState.bgX -= gameState.bgSpeed;
+      if (gameState.bgX <= -canvas.width) gameState.bgX = 0;
+      ctx.drawImage(assets.bg, gameState.bgX, 0, canvas.width, canvas.height);
+      ctx.drawImage(assets.bg, gameState.bgX + canvas.width, 0, canvas.width, canvas.height);
+    }
+
+    function drawPlayer() {
+      if (gameState.player.exploding || gameState.currentScene === 'intro' || gameState.currentScene === 'player_exit_scene') return;
+      if (assets.hero.complete) {
+        ctx.drawImage(assets.hero, gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
+      } else {
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
+      }
+    }
+    
+    function drawPlayerAtCurrentPos() {
+      if (assets.hero.complete) {
+        ctx.drawImage(assets.hero, gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
+      } else {
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.height);
+      }
+    }
+
+    function createExplosion(x, y, isBoss = false, isPlayer = false) {
+      if (isBoss) {
+        if (isPlayer) {
+          gameState.explosions.push(new PlayerExplosion(x, y));
+          audio.cry.currentTime = 0;
+          audio.cry.play().catch(e => console.error("Error playing cry:", e));
+        } else {
+          gameState.explosions.push(new BossExplosion(x, y));
+          audio.finalExplosion.currentTime = 0;
+          audio.finalExplosion.play().catch(e => console.error("Error playing final explosion:", e));
+        }
+      } else {
+        gameState.explosions.push(new Explosion(x, y, 40));
+        audio.miniExplosion.currentTime = 0;
+        audio.miniExplosion.play().catch(e => console.error("Error playing mini explosion:", e));
+      }
+    }
+
+    function checkCollision(a, b) {
+      return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    }
+
+    function fireRocket() {
+      const now = performance.now();
+      if (now - gameState.lastRocketFire > gameState.rocketFireRate && !rocketBtn.classList.contains('disabled')) {
+        gameState.rockets.push(new Rocket(gameState.player.x + gameState.player.width, gameState.player.y));
+        gameState.lastRocketFire = now;
+        audio.rocketShot.currentTime = 0;
+        audio.rocketShot.play().catch(e => console.error("Error playing rocket:", e));
+      }
+    }
+
+    function fireBeam() {
+      const now = performance.now();
+      if (now - gameState.lastBeamFire > gameState.beamFireRate && gameState.boss && gameState.boss.hp < gameState.boss.maxHp * 0.3 && !gameState.isBeamSequenceActive) {
+        if (audio.gameplayMusic) { audio.gameplayMusic.pause(); audio.gameplayMusic.currentTime = 0; }
+        if (audio.bossBattleMusic) { audio.bossBattleMusic.pause(); audio.bossBattleMusic.currentTime = 0; }
+
+        gameState.isBeamSequenceActive = true;
+        gameState.beamSequenceState = 'repositioning';
+        gameState.beamSequenceStartTime = now;
+        gameState.playerOriginalPos = { x: gameState.player.x, y: gameState.player.y };
+        gameState.bossOriginalPos = { x: gameState.boss.x, y: gameState.boss.y };
+
+        fireBtn.classList.add('disabled');
+        rocketBtn.classList.add('disabled');
+        beamBtn.classList.add('disabled');
+        upBtn.classList.add('disabled');
+        downBtn.classList.add('disabled');
+        gameState.keys.up = false;
+        gameState.keys.down = false;
+        gameState.keys.fire = false;
+      }
+    }
+
+    function updateButtonVisibility() {
+      const hiddenScenes = ['intro', 'player_exit_scene', 'victory_text_scene', 'victory_transition', 'image_sequence', 'quiz', 'final_victory'];
+      if (hiddenScenes.includes(gameState.currentScene) || gameState.isBeamSequenceActive) {
+        rocketBtn.style.display = 'none';
+        beamBtn.style.display = 'none';
+        fireBtn.classList.add('disabled');
+        gameHeader.classList.remove('active');
+        gameFooter.classList.remove('active');
+        dialogueBox.style.display = (gameState.currentScene === 'intro' && gameState.introScene && ['dialogue', 'dialogue_fade'].includes(gameState.introScene.state)) ? 'block' : 'none';
+        return;
+      } else {
+        gameHeader.classList.add('active');
+        gameFooter.classList.add('active');
+        dialogueBox.style.display = 'none';
+      }
+
+      if (gameState.bossDefeated) {
+        rocketBtn.style.display = 'none';
+        beamBtn.style.display = 'none';
+        fireBtn.classList.add('disabled');
+        return;
+      }
+
+      if (gameState.boss) {
+        rocketBtn.style.display = 'flex';
+        if (gameState.boss.hp < gameState.boss.maxHp * 0.3) {
+          beamBtn.style.display = 'flex';
+          fireBtn.classList.add('disabled');
+          rocketBtn.classList.add('disabled');
+        } else {
+          beamBtn.style.display = 'none';
+          fireBtn.classList.remove('disabled');
+          rocketBtn.classList.remove('disabled');
+        }
+      } else {
+        rocketBtn.style.display = 'none';
+        beamBtn.style.display = 'none';
+        fireBtn.classList.remove('disabled');
+        rocketBtn.classList.remove('disabled');
+      }
+    }
+
+    function spawnEnemy(timestamp) {
+      if (!gameState.isScreenFlashing && !gameState.boss && gameState.score < 150 && !gameState.bossDefeated && !gameState.isBeamSequenceActive) {
+        if (timestamp - gameState.lastEnemySpawn > gameState.enemySpawnInterval) {
+          gameState.enemies.push(new Enemy());
+          gameState.lastEnemySpawn = timestamp;
+          if (gameState.score > 0 && gameState.score % 5 === 0) {
+            gameState.enemySpawnInterval = Math.max(500, gameState.enemySpawnInterval - 100);
+          }
+        }
+      }
+    }
+
+    function showGameModal(title, score) {
+      modalTitle.textContent = title;
+      modalScore.textContent = `Skor Akhir: ${score}`;
+      gameModalOverlay.classList.add('active');
+      gameState.gameRunning = false;
+    }
+
+    function hideGameModal() {
+      gameModalOverlay.classList.remove('active');
+    }
+
+    // Post Game Sequence Logic
+    function startPlayerExitScene() {
+      gameState.currentScene = 'player_exit_scene';
+      gameState.playerExitStartTime = performance.now();
+      for (const key in audio) {
+        if (audio.hasOwnProperty(key)) {
+          audio[key].pause();
+          audio[key].currentTime = 0;
+        }
+      }
+    }
+
+    function startVictoryTransition() {
+      gameHeader.classList.remove('active');
+      gameFooter.classList.remove('active');
+      gameModalOverlay.classList.remove('active');
+      nextSceneOverlay.classList.add('active');
+      
+      for (let i = 0; i < 100; i++) {
+        const star = document.createElement('div');
+        star.classList.add('star');
+        star.style.width = `${Math.random() * 3 + 1}px`;
+        star.style.height = star.style.width;
+        star.style.left = `${Math.random() * 100}%`;
+        star.style.top = `${Math.random() * 100}%`;
+        star.style.animationDelay = `${Math.random() * 3}s`;
+        nextSceneOverlay.appendChild(star);
+      }
+    }
+
+    function startImageSequence() {
+      nextSceneOverlay.classList.remove('active');
+      nextSceneOverlay.querySelectorAll('.star').forEach(star => star.remove());
+      imageSequenceOverlay.classList.add('active');
+      gameState.currentScene = 'image_sequence';
+      gameState.imageSequenceIndex = 0;
+      gameState.imageSequenceStartTime = performance.now();
+      displayNextImage();
+
+      if (audio.enjoyMusic) {
+        audio.enjoyMusic.loop = false;
+        audio.enjoyMusic.currentTime = 0;
+        audio.enjoyMusic.play().catch(e => console.error("Error playing enjoyMusic:", e));
+      }
+    }
+
+    function displayNextImage() {
+      if (gameState.imageSequenceIndex < assets.sceneImages.length) {
+        sequenceImage.src = assets.sceneImages[gameState.imageSequenceIndex].src;
+        sequenceImage.style.opacity = 0;
+        setTimeout(() => sequenceImage.style.opacity = 1, 100);
+        gameState.imageSequenceStartTime = performance.now();
+      } else {
+        endImageSequence();
+      }
+    }
+
+    function endImageSequence() {
+      imageSequenceOverlay.classList.remove('active');
+      if (audio.enjoyMusic) {
+        audio.enjoyMusic.pause();
+        audio.enjoyMusic.currentTime = 0;
+      }
+      startQuiz();
+    }
+
+    function startQuiz() {
+      quizOverlay.classList.add('active');
+      gameState.currentScene = 'quiz';
+      gameState.currentQuestionIndex = 0;
+      gameState.correctAnswersCount = 0;
+      quizFeedback.textContent = '';
+      quizHadehh.style.display = 'none';
+      quizRestartBtn.style.display = 'none';
+      quizWinMessage.style.display = 'none';
+      quizContinueBtn.style.display = 'none';
+      displayQuestion();
+      gameState.quizStartTime = performance.now();
+      startQuizTimer();
+    }
+
+    function displayQuestion() {
+      quizFeedback.textContent = '';
+      quizFeedback.classList.remove('correct', 'wrong');
+      quizOptions.innerHTML = '';
+      quizHadehh.style.display = 'none';
+      quizRestartBtn.style.display = 'none';
+
+      if (gameState.currentQuestionIndex < gameState.quizData.length) {
+        const question = gameState.quizData[gameState.currentQuestionIndex];
+        quizQuestion.innerHTML = question.question.replace(/\n/g, '<br>');
+
+        question.options.forEach(option => {
+          const button = document.createElement('button');
+          button.classList.add('quiz-option-btn');
+          button.textContent = option;
+          button.onclick = () => checkAnswer(option);
+          quizOptions.appendChild(button);
+        });
+      } else {
+        endQuiz(gameState.correctAnswersCount === gameState.quizData.length);
+      }
+    }
+
+    function checkAnswer(selectedOption) {
+      const currentQuestion = gameState.quizData[gameState.currentQuestionIndex];
+      const isCorrect = selectedOption === currentQuestion.answer;
+      
+      Array.from(quizOptions.children).forEach(btn => {
+        btn.disabled = true;
+        if (btn.textContent === currentQuestion.answer) btn.classList.add('correct');
+        else if (btn.textContent === selectedOption) btn.classList.add('wrong');
+      });
+
+      if (isCorrect) {
+        gameState.correctAnswersCount++;
+        quizFeedback.textContent = 'Benar!';
+        quizFeedback.classList.add('correct');
+        audio.yeySound.currentTime = 0;
+        audio.yeySound.play().catch(e => console.error("Error yeySound:", e));
+      } else {
+        quizFeedback.textContent = 'Salah!';
+        quizFeedback.classList.add('wrong');
+        audio.boooSound.currentTime = 0;
+        audio.boooSound.play().catch(e => console.error("Error boooSound:", e));
+        setTimeout(() => endQuiz(false), 1500);
+        return;
+      }
+
+      setTimeout(() => {
+        gameState.currentQuestionIndex++;
+        if (gameState.currentQuestionIndex < gameState.quizData.length) displayQuestion();
+        else endQuiz(gameState.correctAnswersCount === gameState.quizData.length);
+      }, 1500);
+    }
+
+    function startQuizTimer() {
+      clearInterval(gameState.quizTimerInterval);
+      let timeLeft = 10 * 60;
+      gameState.quizTimerInterval = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        quizTimerDisplay.textContent = `Waktu: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        if (timeLeft <= 0) {
+          clearInterval(gameState.quizTimerInterval);
+          endQuiz(false, true);
+        } else {
+          timeLeft--;
+        }
+      }, 1000);
+    }
+    
+    function endQuiz(allCorrect, timeUp = false) {
+      clearInterval(gameState.quizTimerInterval);
+      quizQuestion.style.display = 'none';
+      quizOptions.style.display = 'none';
+      quizFeedback.style.display = 'none';
+      quizTimerDisplay.style.display = 'none';
+
+      if (allCorrect) {
+        quizWinMessage.style.display = 'block';
+        quizContinueBtn.style.display = 'block';
+        audio.yeySound.currentTime = 0;
+        audio.yeySound.play().catch(e => console.error("Error yeySound win:", e));
+      } else {
+        quizHadehh.style.display = 'block';
+        quizRestartBtn.style.display = 'block';
+        audio.boooSound.currentTime = 0;
+        audio.boooSound.play().catch(e => console.error("Error boooSound lose:", e));
+      }
+    }
+
+    function startFinalVictoryScene() {
+      quizOverlay.classList.remove('active');
+      finalVictoryOverlay.classList.add('active');
+      gameState.currentScene = 'final_victory';
+      gameState.finalVictoryStartTime = performance.now();
+      dancingChickenGif.style.display = 'block';
+      gameState.chickenGifDisplayed = true;
+      finalMessage.style.display = 'none';
+
+      for (const key in audio) {
+        if (audio.hasOwnProperty(key)) {
+          audio[key].pause(); audio[key].currentTime = 0;
+        }
+      }
+
+      audio.chickenSong.loop = true;
+      audio.chickenSong.currentTime = 0;
+      audio.chickenSong.play().catch(e => console.error("Error chickenSong:", e));
+      startConfetti();
+    }
+
+    function startConfetti() {
+      const colors = ['#f0f', '#0ff', '#ff0', '#0f0', '#f00', '#00f', '#ffa500', '#800080'];
+      for (let i = 0; i < 100; i++) {
+        const confetti = document.createElement('div');
+        confetti.classList.add('confetti');
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.left = `${Math.random() * 100}vw`;
+        confetti.style.top = `${-Math.random() * 20}vh`;
+        confetti.style.animationDuration = `${Math.random() * 3 + 2}s`;
+        confetti.style.animationDelay = `${Math.random() * 2}s`;
+        confetti.style.width = `${Math.random() * 8 + 5}px`;
+        confetti.style.height = confetti.style.width;
+        finalVictoryOverlay.appendChild(confetti);
+        gameState.confettiParticles.push(confetti);
+      }
+      setTimeout(() => {
+        gameState.confettiParticles.forEach(p => p.remove());
+        gameState.confettiParticles = [];
+      }, 30000);
+    }
+
+    // Main Game Loop
+    function gameLoop(timestamp) {
+      if (timestamp - lastFrameTime < frameInterval) {
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+      lastFrameTime = timestamp;
+      lastTimestamp = timestamp;
+
+      if (gameState.isPausedByOrientation) {
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+
+      switch (gameState.currentScene) {
+        case 'intro':
+          if (gameState.introScene.update(timestamp)) {
+            gameState.currentScene = 'playing';
+            gameState.player.x = 50;
+            gameState.player.y = canvas.height / 2 - gameState.player.height / 2;
+            gameState.boss = null;
+          }
+          gameState.introScene.draw();
+          break;
+
+        case 'playing':
+          if (gameState.isBeamSequenceActive) {
+            const elapsedBeamSequence = timestamp - gameState.beamSequenceStartTime;
+            if (gameState.beamSequenceState === 'repositioning') {
+              const playerTargetX = canvas.width * 0.1;
+              const playerTargetY = canvas.height / 2 - gameState.player.height / 2;
+              const bossTargetX = canvas.width * 0.9 - gameState.boss.width;
+              const bossTargetY = canvas.height / 2 - gameState.boss.height / 2;
+
+              gameState.player.x += (playerTargetX - gameState.player.x) * gameState.repositionSpeed;
+              gameState.player.y += (playerTargetY - gameState.player.y) * gameState.repositionSpeed;
+              gameState.boss.x += (bossTargetX - gameState.boss.x) * gameState.repositionSpeed;
+              gameState.boss.y += (bossTargetY - gameState.boss.y) * gameState.repositionSpeed;
+
+              const playerReached = Math.abs(gameState.player.x - playerTargetX) < 1 && Math.abs(gameState.player.y - playerTargetY) < 1;
+              const bossReached = Math.abs(gameState.boss.x - bossTargetX) < 1 && Math.abs(gameState.boss.y - bossTargetY) < 1;
+
+              if (playerReached && bossReached) {
+                gameState.player.x = playerTargetX; gameState.player.y = playerTargetY;
+                gameState.boss.x = bossTargetX; gameState.boss.y = bossTargetY;
+                gameState.beamSequenceState = 'casting_audio';
+                gameState.beamSequenceStartTime = timestamp;
+                audio.castingAudio.currentTime = 0;
+                audio.castingAudio.play().catch(e => console.error(e));
+              }
+            } else if (gameState.beamSequenceState === 'casting_audio') {
+              if (elapsedBeamSequence >= 13000) {
+                gameState.beamSequenceState = 'beam_active';
+                gameState.beamSequenceStartTime = timestamp;
+                gameState.beams.push(new Beam(gameState.player.x + gameState.player.width, gameState.player.y + gameState.player.height / 2, 12000));
+                audio.beamAudio.currentTime = 0;
+                audio.beamAudio.play().catch(e => console.error(e));
+              }
+            } else if (gameState.beamSequenceState === 'beam_active') {
+              for (let i = gameState.beams.length - 1; i >= 0; i--) {
+                const beam = gameState.beams[i];
+                beam.update(); beam.draw();
+                if (!beam.active) gameState.beams.splice(i, 1);
+              }
+              if (elapsedBeamSequence >= 12000) {
+                if (gameState.boss) {
+                  gameState.boss.hp = 0;
+                  if (!gameState.boss.exploding) {
+                    gameState.boss.exploding = true;
+                    createExplosion(gameState.boss.x + gameState.boss.width / 2, gameState.boss.y + gameState.boss.height / 2, true);
+                    gameState.bossDefeated = true;
+                    if (audio.bossBattleMusic) { audio.bossBattleMusic.pause(); audio.bossBattleMusic.currentTime = 0; }
+                    gameState.boss = null;
+                  }
+                }
+                gameState.isBeamSequenceActive = false;
+                gameState.beamSequenceState = 'finished';
+                gameState.lastBeamFire = timestamp;
+                if (!gameState.isVictory && !gameState.player.exploding) {
+                  fireBtn.classList.remove('disabled');
+                  rocketBtn.classList.remove('disabled');
+                  beamBtn.classList.remove('disabled');
+                  upBtn.classList.remove('disabled');
+                  downBtn.classList.remove('disabled');
+                }
+              }
+            }
+            drawPlayer();
+            if (gameState.boss) gameState.boss.draw();
+            requestAnimationFrame(gameLoop);
+            return;
+          }
+
+          if (gameState.boss && !gameState.boss.isTransformed && !gameState.isScreenFlashing && gameState.boss.hp <= gameState.boss.maxHp / 2) {
+            gameState.isScreenFlashing = true;
+            gameState.screenFlashStartTime = timestamp;
+            audio.danger.currentTime = 0;
+            audio.danger.play().catch(e => console.error(e));
+          }
+
+          if (gameState.isScreenFlashing) {
+            gameState.currentScreenFlashBlinkState = (timestamp % (2 * gameState.screenFlashBlinkInterval)) < gameState.screenFlashBlinkInterval;
+            if (timestamp - gameState.screenFlashStartTime >= gameState.screenFlashDuration) {
+              gameState.isScreenFlashing = false;
+              audio.danger.pause(); audio.danger.currentTime = 0;
+              if (gameState.boss && !gameState.boss.isTransformed) gameState.boss.transform();
+            }
+          }
+
+          if (!gameState.isScreenFlashing && !gameState.isBeamSequenceActive) {
+            if (gameState.keys.up) gameState.player.y = Math.max(0, gameState.player.y - gameState.player.speed);
+            if (gameState.keys.down) gameState.player.y = Math.min(canvas.height - gameState.player.height, gameState.player.y + gameState.player.speed);
+          }
+
+          if (gameState.boss && !gameState.isBeamSequenceActive) {
+            const topSafeZone = canvas.height * gameState.safeZoneThreshold;
+            const bottomSafeZone = canvas.height - (canvas.height * gameState.safeZoneThreshold) - gameState.player.height;
+            const playerInTopSafeZone = gameState.player.y <= topSafeZone;
+            const playerInBottomSafeZone = gameState.player.y >= bottomSafeZone;
+
+            if (playerInTopSafeZone || playerInBottomSafeZone) {
+              if (!gameState.isPlayerInSafeZone) {
+                gameState.isPlayerInSafeZone = true;
+                gameState.playerInSafeZoneTime = timestamp;
+              } else if (timestamp - gameState.playerInSafeZoneTime >= gameState.safeZonePenaltyDuration) {
+                gameState.player.hp -= 50;
+                hpFill.style.width = `${(gameState.player.hp / 2000) * 100}%`;
+                gameState.thunderAnimations.push(new ThunderAnimation(canvas.width, gameState.player.y + gameState.player.height / 2 - 50, 300, 100, 550));
+                audio.thunderSound.currentTime = 0;
+                audio.thunderSound.play().catch(e => console.error(e));
+                gameState.playerInSafeZoneTime = timestamp;
+              }
+            } else {
+              gameState.isPlayerInSafeZone = false;
+              gameState.playerInSafeZoneTime = 0;
+            }
+          }
+
+          if (!gameState.isScreenFlashing && !gameState.isBeamSequenceActive && gameState.keys.fire && !fireBtn.classList.contains('disabled') && timestamp - gameState.lastFire > gameState.fireRate) {
+            gameState.bullets.push(new Bullet(gameState.player.x + gameState.player.width, gameState.player.y + gameState.player.height / 2 - 2.5));
+            gameState.lastFire = timestamp;
+            audio.heroShot.currentTime = 0;
+            audio.heroShot.play().catch(e => console.error(e));
+          }
+
+          spawnEnemy(timestamp);
+
+          if (!gameState.boss && gameState.score >= 150 && !gameState.bossDefeated && !gameState.isBeamSequenceActive) {
+            gameState.boss = new Boss();
+            gameState.enemies = [];
+            if (audio.gameplayMusic) { audio.gameplayMusic.pause(); audio.gameplayMusic.currentTime = 0; }
+            if (audio.bossBattleMusic) { audio.bossBattleMusic.loop = true; audio.bossBattleMusic.play().catch(e => console.error(e)); }
+          }
+
+          for (let i = gameState.beams.length - 1; i >= 0; i--) {
+            const beam = gameState.beams[i];
+            beam.update(); beam.draw();
+            if (!beam.active) gameState.beams.splice(i, 1);
+          }
+
+          for (let i = gameState.bullets.length - 1; i >= 0; i--) {
+            const bullet = gameState.bullets[i];
+            bullet.update(); bullet.draw();
+            if (bullet.x > canvas.width) { gameState.bullets.splice(i, 1); continue; }
+
+            for (let j = gameState.enemies.length - 1; j >= 0; j--) {
+              const enemy = gameState.enemies[j];
+              if (checkCollision(bullet, enemy)) {
+                gameState.bullets.splice(i, 1);
+                gameState.enemies.splice(j, 1);
+                gameState.score += 10;
+                scoreDisplay.textContent = gameState.score;
+                createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+                break;
+              }
+            }
+            if (gameState.boss && checkCollision(bullet, gameState.boss)) {
+              gameState.bullets.splice(i, 1);
+              gameState.boss.hp -= 10;
+              if (gameState.boss.hp <= 0 && !gameState.boss.exploding) {
+                gameState.boss.exploding = true;
+                createExplosion(gameState.boss.x + gameState.boss.width / 2, gameState.boss.y + gameState.boss.height / 2, true);
+                gameState.bossDefeated = true;
+                if (audio.bossBattleMusic) { audio.bossBattleMusic.pause(); audio.bossBattleMusic.currentTime = 0; }
+                gameState.boss = null;
+              }
+            }
+          }
+
+          for (let i = gameState.rockets.length - 1; i >= 0; i--) {
+            const rocket = gameState.rockets[i];
+            rocket.update(); rocket.draw();
+            if (rocket.x > canvas.width) { gameState.rockets.splice(i, 1); continue; }
+
+            for (let j = gameState.enemies.length - 1; j >= 0; j--) {
+              const enemy = gameState.enemies[j];
+              if (checkCollision(rocket, enemy)) {
+                gameState.rockets.splice(i, 1);
+                gameState.enemies.splice(j, 1);
+                gameState.score += 20;
+                scoreDisplay.textContent = gameState.score;
+                createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+                break;
+              }
+            }
+            if (gameState.boss && checkCollision(rocket, gameState.boss)) {
+              gameState.rockets.splice(i, 1);
+              gameState.boss.hp -= 30;
+              if (gameState.boss.hp <= 0 && !gameState.boss.exploding) {
+                gameState.boss.exploding = true;
+                createExplosion(gameState.boss.x + gameState.boss.width / 2, gameState.boss.y + gameState.boss.height / 2, true);
+                gameState.bossDefeated = true;
+                if (audio.bossBattleMusic) { audio.bossBattleMusic.pause(); audio.bossBattleMusic.currentTime = 0; }
+                gameState.boss = null;
+              }
+            }
+          }
+
+          if (!gameState.isBeamSequenceActive) {
+            for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+              const enemy = gameState.enemies[i];
+              enemy.update(timestamp); enemy.draw();
+              if (enemy.x + enemy.width < 0) { gameState.enemies.splice(i, 1); continue; }
+              if (checkCollision(enemy, gameState.player)) {
+                gameState.enemies.splice(i, 1);
+                gameState.player.hp -= 100;
+                hpFill.style.width = `${(gameState.player.hp / 2000) * 100}%`;
+                createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+              }
+            }
+
+            for (let i = gameState.enemyBullets.length - 1; i >= 0; i--) {
+              const bullet = gameState.enemyBullets[i];
+              bullet.update(); bullet.draw();
+              if (bullet.x + bullet.width < 0) { gameState.enemyBullets.splice(i, 1); continue; }
+              if (checkCollision(bullet, gameState.player)) {
+                gameState.enemyBullets.splice(i, 1);
+                gameState.player.hp -= 50;
+                hpFill.style.width = `${(gameState.player.hp / 2000) * 100}%`;
+              }
+            }
+          }
+
+          if (gameState.boss && !gameState.isBeamSequenceActive) {
+            gameState.boss.update(timestamp);
+            gameState.boss.draw();
+            bossHpFill.style.width = `${(gameState.boss.hp / gameState.boss.maxHp) * 100}%`;
+            if (checkCollision(gameState.boss, gameState.player)) {
+              gameState.player.hp -= 200;
+              hpFill.style.width = `${(gameState.player.hp / 2000) * 100}%`;
+            }
+            if (gameState.boss.isLaserActive && !gameState.boss.laserDamageApplied) {
+              const laserYStart = gameState.boss.y + gameState.boss.height / 3;
+              const laserYEnd = gameState.boss.y + (2 * gameState.boss.height / 3);
+              const playerInLaserPath = gameState.player.x + gameState.player.width > 0 && gameState.player.x < gameState.boss.x && gameState.player.y + gameState.player.height > laserYStart && gameState.player.y < laserYEnd;
+              if (playerInLaserPath) {
+                gameState.player.hp -= 2000;
+                hpFill.style.width = `${(gameState.player.hp / 2000) * 100}%`;
+                gameState.boss.laserDamageApplied = true;
+              }
+            }
+          } else if (!gameState.isBeamSequenceActive) {
+            bossHpFill.style.width = '0%';
+          }
+
+          for (let i = gameState.explosions.length - 1; i >= 0; i--) {
+            const explosion = gameState.explosions[i];
+            explosion.update(); explosion.draw();
+            if (explosion.isFinished()) gameState.explosions.splice(i, 1);
+          }
+
+          for (let i = gameState.debris.length - 1; i >= 0; i--) {
+            const debris = gameState.debris[i];
+            debris.update(); debris.draw();
+            if (debris.isFinished()) gameState.debris.splice(i, 1);
+          }
+
+          for (let i = gameState.thunderAnimations.length - 1; i >= 0; i--) {
+            const thunder = gameState.thunderAnimations[i];
+            thunder.update(timestamp); thunder.draw();
+            if (thunder.isFinished()) gameState.thunderAnimations.splice(i, 1);
+          }
+
+          if (!gameState.isScreenFlashing && !gameState.isBeamSequenceActive) {
+            drawPlayer();
+          } else if (!gameState.currentScreenFlashBlinkState && !gameState.isBeamSequenceActive) {
+            drawPlayer();
+          }
+
+          if (gameState.isScreenFlashing && gameState.currentScreenFlashBlinkState) {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+          }
+
+          if (gameState.player.hp <= 0 && !gameState.player.exploding) {
+            gameState.player.exploding = true;
+            createExplosion(gameState.player.x + gameState.player.width / 2, gameState.player.y + gameState.player.height / 2, true, true);
+            setTimeout(() => showGameModal("NOOB?", gameState.score), 500);
+          }
+          break;
+
+        case 'player_exit_scene':
+          gameState.player.x += gameState.player.speed + 2;
+          drawPlayerAtCurrentPos();
+          ctx.fillStyle = 'white'; ctx.font = 'bold 40px Arial Black'; ctx.textAlign = 'center';
+          ctx.fillText("Pro Velin, WIN!", canvas.width / 2, canvas.height / 2 - 50);
+          ctx.fillText("VICTORY!", canvas.width / 2, canvas.height / 2 + 20);
+          if (performance.now() - gameState.playerExitStartTime >= 5000) {
+            gameState.currentScene = 'victory_scene_fade_out';
+            gameState.victorySceneFadeOutStartTime = performance.now();
+          }
+          break;
+
+        case 'victory_scene_fade_out':
+          const fadeDuration = 1000;
+          const elapsedFade = timestamp - gameState.victorySceneFadeOutStartTime;
+          ctx.globalAlpha = 1 - Math.min(1, elapsedFade / fadeDuration);
+          drawBackground();
+          drawPlayerAtCurrentPos();
+          ctx.save();
+          ctx.font = 'bold 40px Arial Black'; ctx.textAlign = 'center';
+          ctx.fillStyle = '#ffff00'; ctx.shadowColor = '#ffff99'; ctx.shadowBlur = 20;
+          ctx.fillText("Pro Velin, WIN!", canvas.width / 2, canvas.height / 2 - 50);
+          ctx.fillText("VICTORY!", canvas.width / 2, canvas.height / 2 + 20);
+          ctx.restore();
+          if (elapsedFade >= fadeDuration) startVictoryTransition();
+          break;
+
+        case 'victory_transition':
+          if (!nextSceneOverlay.classList.contains('active')) startVictoryTransition();
+          break;
+
+        case 'image_sequence':
+          if (performance.now() - gameState.imageSequenceStartTime > gameState.imageDisplayDuration) {
+            gameState.imageSequenceIndex++;
+            displayNextImage();
+          }
+          break;
+
+        case 'final_victory':
+          const finalElapsed = timestamp - gameState.finalVictoryStartTime;
+          if (gameState.chickenGifDisplayed && finalElapsed >= 30000) {
+            dancingChickenGif.style.display = 'none';
+            gameState.chickenGifDisplayed = false;
+            finalVictoryOverlay.style.background = 'linear-gradient(135deg, #87ceeb, #add8e6)';
+            finalMessage.style.display = 'block';
+            gameState.finalMessageDisplayTime = timestamp;
+            audio.chickenSong.pause(); audio.chickenSong.currentTime = 0;
+            audio.cheerSound.currentTime = 0; audio.cheerSound.play().catch(e => console.error(e));
+          }
+          if (finalMessage.style.display === 'block' && (timestamp - gameState.finalMessageDisplayTime) >= 8000) {
+            location.reload();
+          }
+          break;
+      }
+
+      updateButtonVisibility();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Event Bindings Helper
+    function addTouchAndClick(el, onDown, onUp) {
+      if (!el) return;
+      const downHandler = (e) => { e.preventDefault(); if (onDown) onDown(); };
+      const upHandler = (e) => { e.preventDefault(); if (onUp) onUp(); };
+      el.addEventListener('touchstart', downHandler, { passive: false });
+      el.addEventListener('mousedown', downHandler);
+      if (onUp) {
+        el.addEventListener('touchend', upHandler);
+        el.addEventListener('mouseup', upHandler);
+      }
+    }
+
+    function setupEventListeners() {
+      addTouchAndClick(rocketBtn, () => { if (!gameState.isBeamSequenceActive) fireRocket(); }, null);
+      addTouchAndClick(beamBtn, () => { fireBeam(); }, null);
+      
+      addTouchAndClick(fireBtn, 
+        () => { if (!fireBtn.classList.contains('disabled') && !gameState.isBeamSequenceActive) gameState.keys.fire = true; }, 
+        () => { gameState.keys.fire = false; }
+      );
+      
+      addTouchAndClick(upBtn, 
+        () => { if (!gameState.isBeamSequenceActive) gameState.keys.up = true; }, 
+        () => { gameState.keys.up = false; }
+      );
+      
+      addTouchAndClick(downBtn, 
+        () => { if (!gameState.isBeamSequenceActive) gameState.keys.down = true; }, 
+        () => { gameState.keys.down = false; }
+      );
+
+      window.addEventListener('keydown', e => {
+        if (gameState.isBeamSequenceActive) return;
+        if (e.key === 'ArrowUp' || e.key === 'w') gameState.keys.up = true;
+        if (e.key === 'ArrowDown' || e.key === 's') gameState.keys.down = true;
+        if ((e.key === ' ' || e.key === 'j') && !fireBtn.classList.contains('disabled')) gameState.keys.fire = true;
+        if (e.key === 'r' && !rocketBtn.classList.contains('disabled')) fireRocket();
+        if (e.key === 'b' && gameState.boss && gameState.boss.hp < gameState.boss.maxHp * 0.3) fireBeam();
+      });
+
+      window.addEventListener('keyup', e => {
+        if (gameState.isBeamSequenceActive) return;
+        if (e.key === 'ArrowUp' || e.key === 'w') gameState.keys.up = false;
+        if (e.key === 'ArrowDown' || e.key === 's') gameState.keys.down = false;
+        if (e.key === ' ' || e.key === 'j') gameState.keys.fire = false;
+      });
+
+      modalRestartBtn.addEventListener('click', () => location.reload());
+      quizRestartBtn.addEventListener('click', startQuiz);
+      quizContinueBtn.addEventListener('click', startFinalVictoryScene);
+      nextButtonContainer.addEventListener('click', startImageSequence);
+
+      startButton.addEventListener('click', () => {
+        try {
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().then(() => {
+              if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock("portrait").catch(err => console.log("Orientation lock failed: ", err));
+              }
+            }).catch(err => console.log("Fullscreen failed: ", err));
+          }
+        } catch (e) {
+          console.log("Fullscreen/Orientation API tidak didukung", e);
+        }
+
+        startButtonOverlay.style.display = 'none';
+        requestAnimationFrame(gameLoop);
+
+        if (audio.gameplayMusic) {
+          audio.gameplayMusic.loop = true;
+          audio.gameplayMusic.play().catch(e => console.error("Error playing gameplay music:", e));
+        }
+      });
+    }
+
+    // Initialize Game
+    function initGame() {
+      resizeCanvas();
+      setupEventListeners();
+      gameState.introScene = new IntroScene();
+      gameState.player.x = gameState.introScene.playerIntroX;
+      gameState.player.y = canvas.height / 2 - gameState.player.height / 2;
+
+      const allAssets = [
+        ...Object.values(assets).flat().filter(item => item instanceof Image),
+        ...Object.values(audio).flat().filter(item => item instanceof Audio)
+      ];
+
+      let loadedAssetsCount = 0;
+      const totalAssets = allAssets.length;
+
+      if (totalAssets === 0) {
+        loadingMessage.style.display = 'none';
+        startButton.style.display = 'block';
+        return;
+      }
+
+      allAssets.forEach(asset => {
+        if (asset instanceof Image) {
+          if (asset.complete) loadedAssetsCount++;
+          else {
+            asset.onload = () => {
+              if (++loadedAssetsCount === totalAssets) {
+                loadingMessage.style.display = 'none';
+                startButton.style.display = 'block';
+              }
+            };
+            asset.onerror = () => {
+              if (++loadedAssetsCount === totalAssets) {
+                loadingMessage.style.display = 'none';
+                startButton.style.display = 'block';
+              }
+            };
+          }
+        } else if (asset instanceof Audio) {
+          if (asset.readyState >= 3) loadedAssetsCount++;
+          else {
+            asset.addEventListener('canplaythrough', () => {
+              if (++loadedAssetsCount === totalAssets) {
+                loadingMessage.style.display = 'none';
+                startButton.style.display = 'block';
+              }
+            }, { once: true });
+            asset.addEventListener('error', () => {
+              if (++loadedAssetsCount === totalAssets) {
+                loadingMessage.style.display = 'none';
+                startButton.style.display = 'block';
+              }
+            }, { once: true });
+          }
+        }
+      });
+
+      if (loadedAssetsCount === totalAssets) {
+        loadingMessage.style.display = 'none';
+        startButton.style.display = 'block';
+      }
+    }
+
+    window.onload = initGame;
+  </script>
+</body>
+</html>
